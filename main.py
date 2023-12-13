@@ -8,7 +8,7 @@ import qdrant_client
 
 import requests
 import json
-from langchain.schema import SystemMessage
+from langchain.schema import SystemMessage, AIMessage, HumanMessage
 from langchain.chat_models import ChatOpenAI
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain.chains import LLMMathChain
@@ -23,10 +23,10 @@ from langchain.text_splitter import CharacterTextSplitter
 
 load_dotenv()
 serper_api_key = os.getenv("SERPAPI_API_KEY")
-os.environ['QDRANT_COLLECTION_NAME'] = "my-collenction"
+os.environ['QDRANT_COLLECTION_NAME'] = "Hsuan"
 
-os.environ['QDRANT_URL'] = "..."
-os.environ['QDRANT_API_KEY'] = "..."
+os.environ['QDRANT_URL'] = "https://534dd5af-945d-46d8-9c18-8ec4ece13e80.europe-west3-0.gcp.cloud.qdrant.io:6333"
+os.environ['QDRANT_API_KEY'] = "cQFlE2dQaOiSpEVCKyDag4UteRMl77Lvo0K9F_QDxo2Dz1W_FFcpeg"
 
 
 # tool 搜尋
@@ -36,7 +36,7 @@ def search(query):
         "q": query,
         "gl": "tw",
         "hl": "zh-tw",
-        "num": 2
+        "num": 3
 
     })
     headers = {
@@ -94,7 +94,7 @@ def main():
 
     # create vector chain 
     state_of_union = RetrievalQA.from_chain_type(
-        llm=ChatOpenAI(temperature=0, model="gpt-3.5-turbo-0613"),
+        llm=ChatOpenAI(temperature=0.9, model="gpt-3.5-turbo-0613"),
         chain_type="stuff",
         retriever=vector_store.as_retriever(),
     )
@@ -103,7 +103,7 @@ def main():
         Tool(
             name="Search",
             func=search, # 調用上面的搜尋函數
-            description="這個工具最後才能使用，需要回答時事的問題，這個搜尋會很有幫助。只能繁體中文回答。"
+            description="需要回答時事的問題，這個搜尋會很有幫助。只能繁體中文回答。"
         ),
         Tool(
             name="Calculator",
@@ -113,7 +113,7 @@ def main():
         Tool(
             name="Chat_history",
             func=state_of_union,
-            description="回答 需要回憶歷史聊天內容 的問題時使用，只能繁體中文回答。"
+            description="回答問題時先使用這個工具，主要是回答 需要回憶歷史聊天內容 的問題時使用，只能繁體中文回答。"
         )
 
     ]
@@ -122,10 +122,10 @@ def main():
     # 定義系統訊息，用來傳遞給 Agent
     system_message = SystemMessage(
         content="""
-        你是一位親切的專業助理。
-        你只說繁體中文。
+        妳是一位親切的專業助理，妳叫露娜，妳喜歡交朋友!。
+        妳只說繁體中文，使用口語化表達。
         一個問題思考不能跌代超過3次。
-        你不能虛構信息，當遇到不知道問題的答案，就誠實說不知道。
+        妳不能虛構信息，當遇到不知道問題的答案，就誠實說不知道。
         """
     )
 
@@ -133,13 +133,14 @@ def main():
     agent_kwargs = {
         "extra_prompt_messages":[MessagesPlaceholder(variable_name="chat_history")],
         "system_message":system_message,
+
     }
 
-    llm = ChatOpenAI(temperature=0, 
+    llm = ChatOpenAI(temperature=0.9, 
                      model="gpt-3.5-turbo", 
                      callbacks=[StreamingStdOutCallbackHandler()],
                      streaming= True,
-                     verbose = False,
+                     verbose = True,
                      max_tokens=300)
 
     
@@ -156,37 +157,45 @@ def main():
         tools,
         llm,
         agent=AgentType.OPENAI_FUNCTIONS,
-        verbose = False,
+        verbose = True,
         agent_kwargs=agent_kwargs,
         memory=memory
     )
     
     while True:
+
+        nowtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S %p")
         
         print("\n")
-        user_input = input("使用者: ")
-        print("\n機器人：")
-        agent.run(input=user_input)
+        user_input = input(f"使用者: ")
+        combined_addtime = f"{user_input}（{nowtime}）"
 
-        # print(memory.load_memory_variables({}))
-        output_text = str(memory.load_memory_variables({}))
+        print("\n機器人：")
+        agent.run(input=combined_addtime)
+
+        print(memory.load_memory_variables({}))
+        human_text = str(memory.load_memory_variables({})['chat_history'][-2].content)
+        ai_text = str(memory.load_memory_variables({})['chat_history'][-1].content)
         # print(type(output_text))
+
+        combined_text = f"HumanMessage：時間 {nowtime} 說了 {human_text}, AIMessage：{ai_text}"
 
         with open('Lemon.txt', 'w', encoding='utf-8') as file:
             # 將print的內容寫入檔案
-            file.write(output_text)
+            file.write(combined_text)
 
         with open("Lemon.txt", 'r', encoding='utf-8') as f:
-            raw_text = f.read()
-
+                raw_text = f.read()
         # 內容先經過切割(超過500字時換下一個)
         texts = get_chunks(raw_text)
         
         # 將檔案內容上傳至 qdrant 雲端
         vector_store.add_texts(texts)
 
-        # 當跟機器人說 '退出', '離開', '掰掰'時, 聊天紀錄才會上傳
+
+        # 當跟機器人說 '退出', '離開', '掰掰'時, 就會停止
         if user_input.lower() in ['退出', '離開', '掰掰']:
+
             # print("機器人: 再見!")
             break
 
