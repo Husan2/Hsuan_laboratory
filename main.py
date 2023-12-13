@@ -23,10 +23,11 @@ from langchain.text_splitter import CharacterTextSplitter
 
 load_dotenv()
 serper_api_key = os.getenv("SERPAPI_API_KEY")
-os.environ['QDRANT_COLLECTION_NAME'] = "Hsuan"
+# 資料庫重建只存 HumanMessage
+os.environ['QDRANT_COLLECTION_NAME'] = "Only_HumanMessage"
 
-os.environ['QDRANT_URL'] = "https://534dd5af-945d-46d8-9c18-8ec4ece13e80.europe-west3-0.gcp.cloud.qdrant.io:6333"
-os.environ['QDRANT_API_KEY'] = "cQFlE2dQaOiSpEVCKyDag4UteRMl77Lvo0K9F_QDxo2Dz1W_FFcpeg"
+os.environ['QDRANT_URL'] = "..."
+os.environ['QDRANT_API_KEY'] = "..."
 
 
 # tool 搜尋
@@ -113,7 +114,7 @@ def main():
         Tool(
             name="Chat_history",
             func=state_of_union,
-            description="回答問題時先使用這個工具，主要是回答 需要回憶歷史聊天內容 的問題時使用，只能繁體中文回答。"
+            description="回答問題時先使用這個工具，主要是回答 需要回憶聊天內容 的問題時使用，只能繁體中文回答。"
         )
 
     ]
@@ -122,7 +123,7 @@ def main():
     # 定義系統訊息，用來傳遞給 Agent
     system_message = SystemMessage(
         content="""
-        妳是一位親切的專業助理，妳叫露娜，妳喜歡交朋友!。
+        妳是一位親切的專業助理，妳叫露娜，妳講話很簡潔並且妳喜歡交朋友!。
         妳只說繁體中文，使用口語化表達。
         一個問題思考不能跌代超過3次。
         妳不能虛構信息，當遇到不知道問題的答案，就誠實說不知道。
@@ -164,8 +165,8 @@ def main():
     
     while True:
 
-        nowtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S %p")
-        
+        nowtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S %p %A")
+
         print("\n")
         user_input = input(f"使用者: ")
         combined_addtime = f"{user_input}（{nowtime}）"
@@ -175,10 +176,9 @@ def main():
 
         print(memory.load_memory_variables({}))
         human_text = str(memory.load_memory_variables({})['chat_history'][-2].content)
-        ai_text = str(memory.load_memory_variables({})['chat_history'][-1].content)
-        # print(type(output_text))
+        # ai_text = str(memory.load_memory_variables({})['chat_history'][-1].content)
 
-        combined_text = f"HumanMessage：時間 {nowtime} 說了 {human_text}, AIMessage：{ai_text}"
+        combined_text = f"HumanMessage：時間 {nowtime} 說了 {human_text}"
 
         with open('Lemon.txt', 'w', encoding='utf-8') as file:
             # 將print的內容寫入檔案
