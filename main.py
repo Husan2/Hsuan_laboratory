@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 from langchain.agents import initialize_agent, Tool, AgentType
 from langchain.prompts import MessagesPlaceholder
 from langchain.memory import ConversationBufferMemory
+from langchain.memory import ConversationBufferWindowMemory
+
 import qdrant_client
 
 import requests
@@ -53,12 +55,12 @@ def search(query):
 # search("車力巨人有什麼能力")
 
 # tool 算數
-def math_calculator():
+# def math_calculator():
     
-    llm = ChatOpenAI(temperature=0, model="gpt-3.5-turbo-0613")
-    math_chain = LLMMathChain.from_llm(llm=llm, verbose=True)
+#     llm = ChatOpenAI(temperature=0, model="gpt-3.5-turbo-0613")
+#     math_chain = LLMMathChain.from_llm(llm=llm, verbose=True)
 
-    return math_chain
+#     return math_chain
 
 # 向量庫
 def get_vector_store():
@@ -89,9 +91,16 @@ def get_chunks(text):
     chunks = text_splitter.split_text(text)
     return chunks
 
-def datetime_calculator(abc):
 
-    return abc
+def fack_Remember(template):
+    
+    template="沒問題!我已經記住了!"
+
+    return template
+
+# def datetime_calculator(abc):
+
+#     return abc
 
 def main():
 
@@ -99,7 +108,7 @@ def main():
 
     # create vector chain 
     state_of_union = RetrievalQA.from_chain_type(
-        llm=ChatOpenAI(temperature=0.9, model="gpt-3.5-turbo-0613"),
+        llm=ChatOpenAI(temperature=0.9, model="gpt-3.5-turbo"),
         chain_type="stuff",
         retriever=vector_store.as_retriever(),
     )
@@ -108,12 +117,17 @@ def main():
         Tool(
             name="Search",
             func=search, # 調用上面的搜尋函數
-            description="需要回答時事的問題，這個搜尋會很有幫助。只能繁體中文回答。"
+            description="需要回答時事的問題時使用。只能繁體中文回答。"
         ),
         Tool(
             name="Chat_history",
             func=state_of_union,
-            description="回答問題時先使用這個工具，主要是回答 需要回憶聊天內容 的問題時使用，只能繁體中文回答。"
+            description="回答需要回憶聊天記錄的問題時使用，只能繁體中文回答。"
+        ),
+        Tool(
+            name="fack_Remember",
+            func=fack_Remember,
+            description="遇到需要幫忙記住某句話時使用。只能繁體中文回答。"
         ),
         # Tool(
         #     name="math_Calculator",
@@ -132,9 +146,8 @@ def main():
     # 定義系統訊息，用來傳遞給 Agent
     system_message = SystemMessage(
         content="""
-        妳是一位親切的陪伴者，妳叫露娜，妳講話很簡潔並且妳喜歡交朋友!
+        妳是一位說話很快且講話簡潔的親切助理，妳叫露娜，妳喜歡交朋友!
         妳只說繁體中文，使用口語化表達。
-        一個問題思考不能跌代超過3次。
         妳不能虛構信息，當遇到不知道問題的答案，就誠實說不知道。
         """
     )
@@ -155,12 +168,11 @@ def main():
 
     
     # 臨時記憶
-    # ConversationSummaryBufferMemory 用於聊天歷史紀錄的所有逐字 word, 舊的內存會進行摘要(max_token_limit 數字限制是否為舊內容)
-    memory = ConversationBufferMemory(memory_key="chat_history", 
+    memory = ConversationBufferWindowMemory(memory_key="chat_history", 
                                              return_messages=True, 
                                              llm=llm, 
-                                             max_token_limit=300,
-                                             k = 4
+                                             max_token_limit=100,
+                                             k = 3
                                              )
     
 
@@ -171,6 +183,8 @@ def main():
         verbose = True,
         agent_kwargs=agent_kwargs,
         memory=memory,
+        max_iterations=3, # 設定當思考超過2次跌代就停止
+        
         # handle_parsing_errors=True
     )
     
