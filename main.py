@@ -24,10 +24,10 @@ from langchain.text_splitter import CharacterTextSplitter
 load_dotenv()
 serper_api_key = os.getenv("SERPAPI_API_KEY")
 # 資料庫重建只存 HumanMessage
-os.environ['QDRANT_COLLECTION_NAME'] = "Only_HumanMessage"
 
-os.environ['QDRANT_URL'] = "..."
-os.environ['QDRANT_API_KEY'] = "..."
+qdrant_collection_name = os.getenv("QDRANT_COLLECTION_NAME")
+qdrant_url = os.getenv("QDRANT_URL")
+qdrant_api_key = os.getenv("QDRANT_API_KEY")
 
 
 # tool 搜尋
@@ -56,7 +56,7 @@ def search(query):
 def math_calculator():
     
     llm = ChatOpenAI(temperature=0, model="gpt-3.5-turbo-0613")
-    math_chain = LLMMathChain.from_llm(llm=llm, verbose=False)
+    math_chain = LLMMathChain.from_llm(llm=llm, verbose=True)
 
     return math_chain
 
@@ -64,15 +64,15 @@ def math_calculator():
 def get_vector_store():
     
     client = qdrant_client.QdrantClient(
-        os.getenv("QDRANT_URL"),
-        api_key=os.getenv("QDRANT_API_KEY")
+        qdrant_url,
+        api_key=qdrant_api_key
     )
     
     embeddings = OpenAIEmbeddings()
 
     vector_store = Qdrant(
         client=client, 
-        collection_name=os.getenv("QDRANT_COLLECTION_NAME"), 
+        collection_name=qdrant_collection_name, 
         embeddings=embeddings,
     )
     
@@ -88,6 +88,10 @@ def get_chunks(text):
     )
     chunks = text_splitter.split_text(text)
     return chunks
+
+def datetime_calculator(abc):
+
+    return abc
 
 def main():
 
@@ -107,15 +111,20 @@ def main():
             description="需要回答時事的問題，這個搜尋會很有幫助。只能繁體中文回答。"
         ),
         Tool(
-            name="Calculator",
-            func=math_calculator().run,
-            description="當需要回答數學問題，這個工具會很有幫助。只能繁體中文回答。"
-        ),
-        Tool(
             name="Chat_history",
             func=state_of_union,
             description="回答問題時先使用這個工具，主要是回答 需要回憶聊天內容 的問題時使用，只能繁體中文回答。"
-        )
+        ),
+        # Tool(
+        #     name="math_Calculator",
+        #     func=math_calculator().run,
+        #     description="當需要回答純數字計算的問題使用。只能繁體中文回答。",
+        # ),
+        # Tool(
+        #     name="datetime_Calculator",
+        #     func=datetime_calculator,
+        #     description="當需要回答日期相關的問題使用。只能繁體中文回答。"
+        # )
 
     ]
 
@@ -123,7 +132,7 @@ def main():
     # 定義系統訊息，用來傳遞給 Agent
     system_message = SystemMessage(
         content="""
-        妳是一位親切的專業助理，妳叫露娜，妳講話很簡潔並且妳喜歡交朋友!。
+        妳是一位親切的陪伴者，妳叫露娜，妳講話很簡潔並且妳喜歡交朋友!
         妳只說繁體中文，使用口語化表達。
         一個問題思考不能跌代超過3次。
         妳不能虛構信息，當遇到不知道問題的答案，就誠實說不知道。
@@ -151,6 +160,7 @@ def main():
                                              return_messages=True, 
                                              llm=llm, 
                                              max_token_limit=300,
+                                             k = 4
                                              )
     
 
@@ -160,7 +170,8 @@ def main():
         agent=AgentType.OPENAI_FUNCTIONS,
         verbose = True,
         agent_kwargs=agent_kwargs,
-        memory=memory
+        memory=memory,
+        # handle_parsing_errors=True
     )
     
     while True:
